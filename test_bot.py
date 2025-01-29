@@ -1,11 +1,14 @@
 import json
-
+import os
+from dotenv import load_dotenv
 import pytest
-from copilot_clientv2 import BotClient
+from copilot_chat_client import BotClient
 
-# Replace with the actual endpoint
-BOT_ENDPOINT = ("https://default90474664dbca4de489503382fc4737.e4.environment.api.powerplatform.com/powervirtualagents"
-                "/botsbyschema/cr437_weather/directline/token?api-version=2022-03-01-preview")
+# Load environment variables
+load_dotenv()
+
+# Fetch the endpoint
+BOT_ENDPOINT = os.getenv("BOT_ENDPOINT")
 
 
 @pytest.fixture
@@ -13,14 +16,15 @@ def bot_client():
     """Fixture to initialize and connect to the bot."""
     client = BotClient(BOT_ENDPOINT)
     client.connect()
-    return client
+    yield client
+    client.disconnect()  # Ensure the connection is properly closed after tests
 
 
 def test_connection(bot_client):
     """Test if the bot client connects successfully."""
-    assert bot_client.conversation_id is not None
-    assert bot_client.conversation_token is not None
-    assert bot_client.ws is not None
+    assert bot_client.conversation_id is not None, "Conversation ID should not be None"
+    assert bot_client.conversation_token is not None, "Conversation token should not be None"
+    assert bot_client.ws is not None, "WebSocket should be established"
 
 
 def test_send_and_receive(bot_client):
@@ -29,12 +33,34 @@ def test_send_and_receive(bot_client):
     response = bot_client.receive()
     print(response)
     assert response is not None, "Bot did not respond"
-    assert any("hello" in msg.lower() for msg in response), "Expected greeting in bot response" + str(response)
+    assert any("hello" in msg.lower() for msg in response), f"Expected greeting in bot response: {response}"
 
 
 def test_multiple_messages(bot_client):
     """Test a conversation with multiple exchanges."""
     messages = ["Hi", "Weather", "Hyderabad", "Tomorrow"]
+    for msg in messages:
+        bot_client.send(msg)
+        response = bot_client.receive()
+        print(response)
+        assert response is not None, f"No response for message: {msg}"
+        assert '' not in response, f"Empty response for message: {msg}"
+
+
+def test_conversation_flow(bot_client):
+    """Test a conversation flow with multiple specific messages."""
+    messages = [
+        "hi",
+        "weather",
+        "hyderabad",
+        "tomorrow",
+        "Rainy",
+        "Get Forecast For Tomorrow",
+        "Mumbai",
+        "Ok Bye",
+        "Yes",
+        "No"
+    ]
     for msg in messages:
         bot_client.send(msg)
         response = bot_client.receive()
